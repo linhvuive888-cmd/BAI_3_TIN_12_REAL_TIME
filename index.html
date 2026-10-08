@@ -722,7 +722,7 @@
             durationMinutes: 45,
             spreadsheetId: "1Yt_SmVK1Tza7Eo7eIhOrg61eyq1wI8yD04DdS3D1VEQ",
             // ĐÃ CẤU HÌNH URL WEB APP CHÍNH XÁC CỦA CÔ/THẦY:
-            googleScriptUrl: "https://script.google.com/macros/s/AKfycbzZUnk-2DutuarRX_NSrplEjsQ2k3QprBaWPwrhLqipW_olAs24hix1v3dnuXEl-UWe5Q/exec",
+            googleScriptUrl: "https://script.google.com/macros/s/AKfycbytUwpLIILmjOeTLGVrKE1sU-wvnvhyo3bGWxy7-2hZCBtTgUN7fv_9wpcyWHPQtxIDJA/exec",
             maxGroupMembers: 8
         };
 
@@ -907,7 +907,7 @@
         // HÀM GỬI TIẾN TRÌNH THỜI GIAN THỰC LÊN MÀN HÌNH TIVI CỦA GIÁO VIÊN
         // ===============================================================
         function sendLiveProgress(customStatus = "Đang đua") {
-            if (!APP_CONFIG.googleScriptUrl || APP_CONFIG.googleScriptUrl.includes("DAN_URL_WEB_APP")) return;
+            if (!APP_CONFIG.googleScriptUrl || APP_CONFIG.googleScriptUrl.includes("https://script.google.com/macros/s/AKfycbytUwpLIILmjOeTLGVrKE1sU-wvnvhyo3bGWxy7-2hZCBtTgUN7fv_9wpcyWHPQtxIDJA/exec")) return;
 
             // Tính % chặng đua theo 4 trạm học tập
             let pct = 0;
@@ -1814,63 +1814,147 @@
             playSfx('correct');
         }
 
+        // ===============================================================
+        // NÂNG CẤP TRẠM 2: TỔNG KẾT VÀ GHÉP NỐI CHUẨN XÁC & XÁO TRỘN NGẪU NHIÊN
+        // ===============================================================
+        const SUMMARY_PAIRS = [
+            { id: "hub", name: "1. HUB (Bộ chia)", desc: "Phát rộng tín hiệu đến tất cả các cổng còn lại" },
+            { id: "switch", name: "2. SWITCH (Bộ chuyển mạch)", desc: "Xác định cổng nhận, thiết lập kênh truyền riêng tạm thời" },
+            { id: "ap", name: "3. ACCESS POINT (WAP)", desc: "Phát sóng Wi-Fi, kết nối không dây vào mạng LAN" },
+            { id: "router", name: "4. ROUTER (Bộ định tuyến)", desc: "Dẫn đường và chuyển tiếp dữ liệu giữa các mạng khác nhau" },
+            { id: "modem", name: "5. MODEM", desc: "Chuyển đổi tín hiệu hai chiều (số ⇄ tương tự)" }
+        ];
+
+        let selectedDevId = null; // Lưu thiết bị bên trái đang được chọn
+        let matchedCount = 0;
+
         function renderLabSummary(panel) {
+            selectedDevId = null;
+            matchedCount = 0;
+
+            // Xáo trộn ngẫu nhiên các mô tả bên phải (Thuật toán Fisher-Yates shuffle)
+            const shuffledDescs = [...SUMMARY_PAIRS].sort(() => Math.random() - 0.5);
+
             panel.innerHTML = `
                 <h2 class="station-title">TRẠM 2: TỔNG KẾT VÀ GHI NHỚ THIẾT BỊ</h2>
-                <p class="prompt">Hãy ghép mỗi thiết bị với <strong>từ khóa chức năng cốt lõi</strong> của nó:</p>
+                <p class="prompt">
+                    <strong>Hướng dẫn:</strong> Bấm chọn 1 <strong>Thiết bị bên trái</strong> (sẽ sáng viền), sau đó bấm vào <strong>Chức năng tương ứng bên phải</strong> để ghép đôi:
+                </p>
 
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin: 16px 0;">
-                    <div style="display:flex; flex-direction:column; gap:10px;">
-                        <div class="option-card" style="cursor:default;">1. HUB (Bộ chia)</div>
-                        <div class="option-card" style="cursor:default;">2. SWITCH (Bộ chuyển mạch)</div>
-                        <div class="option-card" style="cursor:default;">3. ACCESS POINT (WAP)</div>
-                        <div class="option-card" style="cursor:default;">4. ROUTER (Bộ định tuyến)</div>
-                        <div class="option-card" style="cursor:default;">5. MODEM</div>
+                <div style="display:grid; grid-template-columns: 1fr 1.3fr; gap:16px; margin: 16px 0;">
+                    <!-- CỘT TRÁI: DANH SÁCH THIẾT BỊ -->
+                    <div style="display:flex; flex-direction:column; gap:10px;" id="summary-dev-list">
+                        ${SUMMARY_PAIRS.map(item => `
+                            <div class="option-card" id="dev-card-${item.id}" onclick="selectSummaryDev('${item.id}', this)" style="cursor:pointer;">
+                                ${item.name}
+                            </div>
+                        `).join('')}
                     </div>
 
-                    <div style="display:flex; flex-direction:column; gap:10px;">
-                        <div class="drop-target" onclick="matchSummary(0, this)">Chạm ghép: [Phát rộng mọi cổng]</div>
-                        <div class="drop-target" onclick="matchSummary(1, this)">Chạm ghép: [Đúng cổng - Tránh xung đột]</div>
-                        <div class="drop-target" onclick="matchSummary(2, this)">Chạm ghép: [Phát Wi-Fi - Mở rộng LAN]</div>
-                        <div class="drop-target" onclick="matchSummary(3, this)">Chạm ghép: [Dẫn đường giữa các mạng]</div>
-                        <div class="drop-target" onclick="matchSummary(4, this)">Chạm ghép: [Chuyển đổi tín hiệu số ⇄ tương tự]</div>
+                    <!-- CỘT PHẢI: CHỨC NĂNG ĐÃ ĐƯỢC XÁO TRỘN NGẪU NHIÊN -->
+                    <div style="display:flex; flex-direction:column; gap:10px;" id="summary-desc-list">
+                        ${shuffledDescs.map(item => `
+                            <div class="drop-target" id="desc-card-${item.id}" onclick="matchSummaryTarget('${item.id}', this)">
+                                ${item.desc}
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
 
-                <div class="feedback-box" id="lab-fb" style="display:flex; justify-content:space-between;">
-                    <div id="lab-fb-text">Ghép đủ 5 cặp thẻ để hoàn thành Trạm 2!</div>
+                <div class="feedback-box" id="lab-fb" style="display:flex; justify-content:space-between; align-items:center;">
+                    <div id="lab-fb-text" style="font-weight:600; color:var(--yellow-hint);">
+                        👉 Hãy chạm chọn 1 thiết bị ở cột bên trái trước!
+                    </div>
                     <button class="btn-primary" id="lab-next-btn" style="display:none;" onclick="completeStation2()">Nhận Mảnh Khóa 2 ➔</button>
                 </div>
             `;
-            state.summaryMatched = 0;
         }
 
-        function matchSummary(idx, el) {
-            if (el.classList.contains("filled")) return;
-            el.classList.add("filled");
-            el.textContent = "✓ Đã ghép chính xác";
-            playBeep(600 + idx * 80, 0.1);
-            state.summaryMatched = (state.summaryMatched || 0) + 1;
-            
-            if (state.summaryMatched >= 5) {
-                if (!state.attempts["s2_summary"]) {
-                    state.attempts["s2_summary"] = true;
-                    sessionData.scoreStation2 += 7;
-                    sessionData.totalScore += 7;
-                    updateStickyBar();
-                    logAnswer("KP_MATCH5", 2, "Ghép đúng 5/5 thiết bị", true);
+        // 1. Học sinh chạm chọn thiết bị ở cột trái
+        function selectSummaryDev(devId, el) {
+            if (el.classList.contains("correct")) return; // Đã ghép đúng rồi thì bỏ qua
 
-                    // [TÍCH HỢP 7] CẬP NHẬT TIẾN ĐỘ TRẠM 2 - TỔNG HỢP
-                    sendLiveProgress("Nắm chắc 5 thiết bị ⚡");
-                }
-                const fbText = document.getElementById("lab-fb-text");
-                const nxt = document.getElementById("lab-next-btn");
-                fbText.innerHTML = "<strong>XUẤT SẮC!</strong> Bạn đã nắm vững toàn bộ chức năng cốt lõi của 5 thiết bị mạng thông dụng!";
-                nxt.style.display = "block";
+            selectedDevId = devId;
+
+            // Xóa viền đang chọn của các thẻ khác bên trái
+            document.querySelectorAll("#summary-dev-list .option-card").forEach(c => {
+                if (!c.classList.contains("correct")) c.classList.remove("selected");
+            });
+
+            el.classList.add("selected");
+            playBeep(480, 0.08);
+
+            const fbText = document.getElementById("lab-fb-text");
+            const devObj = SUMMARY_PAIRS.find(d => d.id === devId);
+            fbText.innerHTML = `Đang chọn: <strong style="color:var(--cyan-glow);">${devObj.name}</strong> ➔ Hãy bấm vào chức năng đúng ở cột bên phải!`;
+        }
+
+        // 2. Học sinh chạm vào chức năng ở cột phải để ghép nối
+        function matchSummaryTarget(targetId, el) {
+            const fb = document.getElementById("lab-fb");
+            const fbText = document.getElementById("lab-fb-text");
+            const nxt = document.getElementById("lab-next-btn");
+
+            if (el.classList.contains("filled")) return; // Ô này đã ghép đúng trước đó
+
+            if (!selectedDevId) {
+                fbText.innerHTML = `<span style="color:var(--red-warn);">⚠️ Vui lòng chạm chọn 1 thiết bị bên trái trước!</span>`;
+                playSfx('wrong');
+                return;
+            }
+
+            const leftCard = document.getElementById(`dev-card-${selectedDevId}`);
+
+            // KIỂM TRA ĐỐI CHIẾU XEM CÓ KHỚP CẶP KHÔNG
+            if (selectedDevId === targetId) {
+                // GHÉP ĐÚNG!
+                leftCard.classList.remove("selected");
+                leftCard.classList.add("correct");
+                leftCard.style.cursor = "default";
+                leftCard.innerHTML += " <strong style='color:#00e676;'>✓</strong>";
+
+                el.classList.add("filled");
+                el.style.cursor = "default";
+                el.innerHTML = "✓ " + el.innerHTML;
+
+                matchedCount++;
+                selectedDevId = null; // Reset lựa chọn
                 playSfx('correct');
+
+                fb.className = "feedback-box correct";
+                fbText.innerHTML = `<strong>GHÉP CHÍNH XÁC!</strong> (Đã hoàn thành ${matchedCount}/5 cặp)`;
+
+                // Khi ghép đủ 5 cặp
+                if (matchedCount >= 5) {
+                    if (!state.attempts["s2_summary"]) {
+                        state.attempts["s2_summary"] = true;
+                        sessionData.scoreStation2 += 7;
+                        sessionData.totalScore += 7;
+                        updateStickyBar();
+                        logAnswer("KP_MATCH5", 2, "Ghép đúng 5/5 thiết bị", true);
+                        sendLiveProgress("Nắm chắc 5 thiết bị ⚡");
+                    }
+                    fbText.innerHTML = "<strong>XUẤT SẮC!</strong> Bạn đã ghép chính xác toàn bộ 5 thiết bị với chức năng tương ứng!";
+                    nxt.style.display = "block";
+                    playSfx('unlock');
+                }
+            } else {
+                // GHÉP SAI!
+                el.style.borderColor = "var(--red-warn)";
+                el.style.background = "rgba(255, 82, 82, 0.2)";
+                setTimeout(() => {
+                    if (!el.classList.contains("filled")) {
+                        el.style.borderColor = "";
+                        el.style.background = "";
+                    }
+                }, 800);
+
+                fb.className = "feedback-box wrong";
+                fbText.innerHTML = "Chưa đúng chức năng của thiết bị này. Hãy đọc kỹ lại từ khóa và thử chọn lại!";
+                playSfx('wrong');
             }
         }
-
+		
         function nextLabSection() {
             state.currentSubStep++;
             renderStation2();
@@ -1892,19 +1976,32 @@
         // ===============================================================
         // TRẠM 3: LUYỆN TẬP (ĐỘI CỨU HỘ MẠNG)
         // ===============================================================
+        // ===============================================================
+        // NÂNG CẤP TRẠM 3: XÁO TRỘN NGẪU NHIÊN CÁC PHƯƠNG ÁN LỰA CHỌN
+        // ===============================================================
         function renderStation3() {
             updateHeaderProgress();
             const panel = document.getElementById("main-panel");
             const step = state.currentSubStep;
 
+            // VÒNG 1: NHẬN DIỆN SIÊU TỐC (5 câu)
             if (step < GAME_DATA.station3_identify.length) {
                 const q = GAME_DATA.station3_identify[step];
+
+                // Đóng gói danh sách lựa chọn kèm trạng thái đúng/sai rồi xáo trộn ngẫu nhiên
+                const shuffledOptions = q.options.map((optText, origIdx) => ({
+                    text: optText,
+                    isCorrect: origIdx === q.ans
+                })).sort(() => Math.random() - 0.5);
+
                 panel.innerHTML = `
                     <h2 class="station-title">TRẠM 3: VÒNG 1 - NHẬN DIỆN SIÊU TỐC (${step + 1}/5)</h2>
                     <p class="prompt"><strong>Tình huống:</strong> ${q.q}</p>
                     <div class="options-grid">
-                        ${q.options.map((opt, i) => `
-                            <div class="option-card" onclick="handleIdentifyAnswer(${i}, ${q.ans})">${opt}</div>
+                        ${shuffledOptions.map(opt => `
+                            <div class="option-card" onclick="handleIdentifyAnswer(${opt.isCorrect}, this, '${q.explain}', '${q.id}')">
+                                ${opt.text}
+                            </div>
                         `).join('')}
                     </div>
                     <div class="feedback-box" id="s3-fb">
@@ -1912,15 +2009,23 @@
                         <button class="btn-primary" id="s3-next-btn" style="display:none;" onclick="nextStation3Step()">Tiếp tục ➔</button>
                     </div>
                 `;
-            } else {
+            } 
+            // VÒNG 2: BÁC SĨ MẠNG - CHẨN ĐOÁN LỖI (4 tình huống)
+            else {
                 const errIdx = step - GAME_DATA.station3_identify.length;
                 const err = GAME_DATA.station3_troubleshoot[errIdx];
+
+                // Xáo trộn ngẫu nhiên 4 phương án xử lý lỗi
+                const shuffledOptions = [...err.options].sort(() => Math.random() - 0.5);
+
                 panel.innerHTML = `
                     <h2 class="station-title">TRẠM 3: VÒNG 2 - BÁC SĨ MẠNG: CHẨN ĐOÁN LỖI (${errIdx + 1}/4)</h2>
                     <p class="prompt"><strong>${err.title}:</strong> ${err.desc}</p>
                     <div class="options-grid">
-                        ${err.options.map(opt => `
-                            <div class="option-card" onclick="handleTroubleshootAnswer(${opt.correct ? 'true' : 'false'}, this, '${err.explain}', '${err.id}')">${opt.text}</div>
+                        ${shuffledOptions.map(opt => `
+                            <div class="option-card" onclick="handleTroubleshootAnswer(${opt.correct ? 'true' : 'false'}, this, '${err.explain}', '${err.id}')">
+                                ${opt.text}
+                            </div>
                         `).join('')}
                     </div>
                     <div class="feedback-box" id="s3-fb">
@@ -1931,46 +2036,51 @@
             }
         }
 
-        function handleIdentifyAnswer(chosen, ans) {
+        // Xử lý khi học sinh chọn đáp án ở Vòng 1
+        function handleIdentifyAnswer(isCorrect, el, explain, qId) {
             const fb = document.getElementById("s3-fb");
             const fbText = document.getElementById("s3-fb-text");
             const nxt = document.getElementById("s3-next-btn");
             const cards = document.querySelectorAll(".option-card");
-            const q = GAME_DATA.station3_identify[state.currentSubStep];
 
-            if (chosen === ans) {
-                cards[chosen].classList.add("correct");
+            if (isCorrect) {
+                // Khóa không cho bấm các thẻ khác sau khi đã chọn đúng
+                cards.forEach(c => c.style.pointerEvents = "none");
+                el.classList.add("correct");
+
                 fb.className = "feedback-box correct";
-                fbText.innerHTML = "<strong>CHÍNH XÁC!</strong> " + q.explain;
+                fbText.innerHTML = "<strong>CHÍNH XÁC!</strong> " + explain;
                 nxt.style.display = "block";
                 
-                if (!state.attempts[q.id]) {
-                    state.attempts[q.id] = true;
+                if (!state.attempts[qId]) {
+                    state.attempts[qId] = true;
                     sessionData.scoreStation3 += 4;
                     sessionData.totalScore += 4;
                     updateStickyBar();
-                    logAnswer(q.id, 3, q.options[chosen], true);
-
-                    // [TÍCH HỢP 8] CẬP NHẬT TIẾN ĐỘ TRẠM 3 - NHẬN DIỆN
+                    logAnswer(qId, 3, el.textContent.trim(), true);
                     sendLiveProgress("Tăng tốc Trạm 3 ⚡");
                 }
                 playSfx('correct');
             } else {
-                cards[chosen].classList.add("wrong");
+                el.classList.add("wrong");
                 fb.className = "feedback-box wrong";
-                fbText.textContent = "Chưa chính xác. Đọc kỹ lại từ khóa trong câu hỏi nhé!";
-                logAnswer(q.id, 3, q.options[chosen], false);
+                fbText.textContent = "Chưa chính xác. Đọc kỹ lại từ khóa trong từng đáp án nhé!";
+                logAnswer(qId, 3, el.textContent.trim(), false);
                 playSfx('wrong');
             }
         }
 
+        // Xử lý khi học sinh chọn cách sửa lỗi ở Vòng 2
         function handleTroubleshootAnswer(isCorrect, el, explain, errId) {
             const fb = document.getElementById("s3-fb");
             const fbText = document.getElementById("s3-fb-text");
             const nxt = document.getElementById("s3-next-btn");
+            const cards = document.querySelectorAll(".option-card");
 
             if (isCorrect) {
+                cards.forEach(c => c.style.pointerEvents = "none");
                 el.classList.add("correct");
+
                 fb.className = "feedback-box correct";
                 fbText.innerHTML = "<strong>XỬ LÝ LỖI CHUẨN XÁC!</strong> " + explain;
                 nxt.style.display = "block";
@@ -1981,9 +2091,7 @@
                     sessionData.scoreStation3 += p;
                     sessionData.totalScore += p;
                     updateStickyBar();
-                    logAnswer(errId, 3, el.textContent, true);
-
-                    // [TÍCH HỢP 9] CẬP NHẬT TIẾN ĐỘ TRẠM 3 - XỬ LÝ LỖI
+                    logAnswer(errId, 3, el.textContent.trim(), true);
                     sendLiveProgress("Xử lý lỗi mạng chuẩn ⚡");
                 }
                 playSfx('correct');
@@ -1991,11 +2099,10 @@
                 el.classList.add("wrong");
                 fb.className = "feedback-box wrong";
                 fbText.textContent = "Chưa đúng giải pháp kỹ thuật. Hãy xem xét cách kiểm tra đơn giản và an toàn nhất!";
-                logAnswer(errId, 3, el.textContent, false);
+                logAnswer(errId, 3, el.textContent.trim(), false);
                 playSfx('wrong');
             }
         }
-
         function nextStation3Step() {
             state.currentSubStep++;
             const totalSteps = GAME_DATA.station3_identify.length + GAME_DATA.station3_troubleshoot.length;
